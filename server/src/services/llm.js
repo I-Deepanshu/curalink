@@ -187,6 +187,7 @@ async function hfGenerate(prompt, { maxTokens }) {
     headers: {
       Authorization: `Bearer ${HF_TOKEN}`,
       'Content-Type': 'application/json',
+      'User-Agent': 'curalink-backend/1.0',
     },
     body: JSON.stringify({
       model: targetModel,
