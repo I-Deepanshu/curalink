@@ -40,9 +40,19 @@ export async function expandQuery(query, disease = '', intent = '') {
     console.log(`[QueryExpander] "${query}" → "${cleaned}"`);
     return cleaned;
   } catch (err) {
-    console.warn(`[QueryExpander] LLM expansion failed, using simple concat: ${err.message}`);
-    // Fallback: append disease to query
-    const parts = [query, disease, intent].filter(Boolean);
-    return [...new Set(parts.join(' ').split(' '))].join(' ');
+    console.warn(`[QueryExpander] LLM expansion failed, using fast fallback: ${err.message}`);
+    
+    // Strict fallback safeguards to ensure PubMed does not return 0 results
+    let fallbackQuery = query;
+    if (query.trim().length <= 8) { // Target short queries like "symptoms" or "piles"
+      fallbackQuery = `${query} disease symptoms treatment`;
+    }
+    
+    // Append disease context securely
+    const parts = [fallbackQuery, disease, intent].filter(Boolean);
+    const finalFallback = [...new Set(parts.join(' ').split(' '))].join(' ');
+    
+    console.log(`[QueryExpander] Fallback optimized -> "${finalFallback}"`);
+    return finalFallback;
   }
 }

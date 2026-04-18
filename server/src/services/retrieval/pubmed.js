@@ -22,6 +22,8 @@ const limit = pLimit(API_KEY ? 10 : 3);
 export async function fetchPubMed(query, maxResults = 20) {
   // Step 1: Search → ID list
   const ids = await searchIds(query, Math.min(maxResults, 50));
+  console.log("[PUBMED RESPONSE IDs]:", ids.length > 0 ? `${ids.length} found` : 'EMPTY array returned');
+  
   if (!ids.length) return [];
 
   console.log(`[PubMed] Found ${ids.length} IDs for: "${query}"`);
