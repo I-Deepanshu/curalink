@@ -1,0 +1,134 @@
+.mb-user {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.mb-user-bubble {
+  background: var(--blue-600);
+  color: #fff;
+  padding: 10px 16px;
+  border-radius: 18px 18px 4px 18px;
+  font-size: 0.92rem;
+  max-width: 75%;
+  line-height: 1.5;
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Assistant ── */
+.mb-assistant {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.mb-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.mb-assistant-body {
+  flex: 1;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mb-content {
+  font-size: 0.92rem;
+  line-height: 1.7;
+  color: var(--slate-700);
+}
+
+/* Prose styles for ReactMarkdown output */
+.mb-content p { margin: 0 0 10px; }
+.mb-content p:last-child { margin-bottom: 0; }
+.mb-content ul, .mb-content ol { padding-left: 20px; margin: 0 0 10px; }
+.mb-content li { margin-bottom: 4px; }
+.mb-content strong { color: var(--slate-800); font-weight: 600; }
+.mb-content a { color: var(--color-primary); }
+.mb-content a:hover { text-decoration: underline; }
+
+.mb-section-heading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--slate-800);
+  margin: 16px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+/* ── Citation link ── */
+.mb-citation {
+  display: inline-block;
+  padding: 1px 5px;
+  background: var(--blue-50);
+  border: 1px solid var(--blue-200);
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--blue-700);
+  text-decoration: none;
+  margin: 0 2px;
+  transition: background 0.15s;
+  cursor: pointer;
+}
+
+.mb-citation:hover {
+  background: var(--blue-100);
+  text-decoration: none;
+}
+
+/* ── Typing indicator ── */
+.mb-typing {
+  display: flex;
+  gap: 4px;
+  padding: 12px 0;
+}
+
+.mb-typing span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--blue-400);
+  animation: mb-bounce 1.2s ease-in-out infinite;
+}
+
+.mb-typing span:nth-child(2) { animation-delay: 0.2s; }
+.mb-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes mb-bounce {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.5; }
+  40% { transform: translateY(-5px); opacity: 1; }
+}
+
+/* ── Streaming cursor ── */
+.mb-cursor::after {
+  content: '▋';
+  color: var(--blue-500);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* ── Model tag ── */
+.mb-model-tag {
+  font-size: 0.7rem;
+  color: var(--slate-400);
+  margin-top: 6px;
+}
+
+/* ── Source highlight (triggered by citation click) ── */
+.source-highlight {
+  animation: sourceFlash 2s ease;
+}
+
+@keyframes sourceFlash {
+  0%, 100% { background: var(--color-surface); }
+  20%, 60% { background: var(--blue-50); border-color: var(--blue-300); box-shadow: 0 0 0 3px rgba(59,130,246,.15); }
+}

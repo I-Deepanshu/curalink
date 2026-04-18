@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: curalink_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      MONGO_INITDB_DATABASE: curalink
+
+  ollama:
+    image: ollama/ollama
+    container_name: curalink_ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    # Pull models on first start:
+    # docker exec curalink_ollama ollama pull llama3.1
+    # docker exec curalink_ollama ollama pull nomic-embed-text
+
+volumes:
+  mongo_data:
+  ollama_models:

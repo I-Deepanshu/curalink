@@ -1,0 +1,17 @@
+.context-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.cf-required {
+  color: var(--red-600);
+}
+
+.cf-submit {
+  width: 100%;
+  justify-content: center;
+  padding: 12px;
+  font-size: 1rem;
+  margin-top: 4px;
+}

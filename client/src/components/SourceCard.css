@@ -1,0 +1,149 @@
+.source-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  transition: box-shadow 0.2s, border-color 0.2s, background 0.3s;
+}
+
+.source-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+/* ── Header ── */
+.sc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.sc-index {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--slate-400);
+  min-width: 28px;
+}
+
+.sc-badges {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+/* ── Title ── */
+.sc-title {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--slate-800);
+  line-height: 1.4;
+  margin-bottom: 4px;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.sc-title:hover {
+  color: var(--color-primary);
+  text-decoration: underline;
+}
+
+/* ── Meta ── */
+.sc-meta {
+  font-size: 0.75rem;
+  color: var(--slate-400);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+/* ── Abstract ── */
+.sc-abstract {
+  font-size: 0.78rem;
+  color: var(--slate-600);
+  line-height: 1.5;
+  margin-bottom: 10px;
+}
+
+.sc-toggle {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+  font-family: var(--font);
+}
+
+.sc-toggle:hover { text-decoration: underline; }
+
+/* ── Footer ── */
+.sc-footer {
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+}
+
+.sc-why-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: var(--slate-400);
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.sc-why-btn:hover { color: var(--color-primary); }
+
+/* ── Rationale panel ── */
+.sc-rationale {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  animation: fadeIn 0.2s ease;
+}
+
+.sc-rationale-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sc-rationale-label {
+  font-size: 0.7rem;
+  color: var(--slate-500);
+  width: 80px;
+  flex-shrink: 0;
+}
+
+.sc-rationale-bar-outer {
+  flex: 1;
+  height: 4px;
+  background: var(--slate-100);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.sc-rationale-bar-inner {
+  height: 100%;
+  background: var(--blue-400);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.sc-rationale-value {
+  font-size: 0.68rem;
+  color: var(--slate-500);
+  width: 32px;
+  text-align: right;
+}
+
+.sc-rationale-total {
+  font-size: 0.72rem;
+  color: var(--slate-600);
+  text-align: right;
+  margin-top: 2px;
+}

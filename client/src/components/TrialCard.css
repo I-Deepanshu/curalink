@@ -1,0 +1,117 @@
+.trial-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  transition: box-shadow 0.2s;
+}
+
+.trial-card:hover { box-shadow: var(--shadow-md); }
+
+.tc-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.tc-nct {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--slate-400);
+}
+
+.tc-title {
+  display: block;
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--slate-800);
+  line-height: 1.4;
+  margin-bottom: 8px;
+  text-decoration: none;
+}
+
+.tc-title:hover { color: var(--color-primary); text-decoration: underline; }
+
+.tc-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tc-tag {
+  background: var(--slate-100);
+  color: var(--slate-600);
+  font-size: 0.68rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.tc-location {
+  font-size: 0.75rem;
+  color: var(--slate-500);
+  margin-bottom: 8px;
+}
+
+.tc-accordion {
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+  margin-top: 8px;
+}
+
+.tc-accordion-btn {
+  background: none;
+  border: none;
+  font-size: 0.72rem;
+  color: var(--slate-400);
+  cursor: pointer;
+  font-family: var(--font);
+  padding: 0;
+  transition: color 0.15s;
+}
+
+.tc-accordion-btn:hover { color: var(--color-primary); }
+
+.tc-eligibility-body {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.tc-elig-row {
+  font-size: 0.75rem;
+  color: var(--slate-600);
+  display: flex;
+  gap: 6px;
+}
+
+.tc-elig-label {
+  font-weight: 600;
+  color: var(--slate-500);
+  min-width: 40px;
+}
+
+.tc-elig-text {
+  font-size: 0.73rem;
+  color: var(--slate-600);
+  line-height: 1.5;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+.tc-contact {
+  font-size: 0.75rem;
+  color: var(--slate-500);
+  margin-top: 8px;
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+}
+
+.tc-footer {
+  border-top: 1px solid var(--color-border);
+  padding-top: 8px;
+  margin-top: 8px;
+}
