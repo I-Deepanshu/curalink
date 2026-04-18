@@ -113,6 +113,17 @@ router.post('/', chatLimiter, async (req, res) => {
       sources: sourcesForPrompt,
     });
 
+    // ── Emit final sources payload IMMEDIATELY ───────────────────────────────
+    sseWrite(res, {
+      type: 'sources',
+      data: {
+        publications: publications.map(sanitiseSource),
+        trials: trials.map(sanitiseTrial),
+        expandedQuery,
+        meta: { ...meta, llmLatencyMs: 0 },
+      },
+    });
+
     // ── Stream LLM response ──────────────────────────────────────────────────
     const startTs = Date.now();
     let fullText = await streamLLM(systemPrompt, userPrompt, res);
@@ -136,17 +147,6 @@ router.post('/', chatLimiter, async (req, res) => {
     });
     session.messages.push(assistantMsg._id);
     await session.save();
-
-    // ── Emit final sources payload ───────────────────────────────────────────
-    sseWrite(res, {
-      type: 'sources',
-      data: {
-        publications: publications.map(sanitiseSource),
-        trials: trials.map(sanitiseTrial),
-        expandedQuery,
-        meta: { ...meta, llmLatencyMs: latencyMs },
-      },
-    });
 
     sseWrite(res, { type: 'done' });
   } catch (err) {
