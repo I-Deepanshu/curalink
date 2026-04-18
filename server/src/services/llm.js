@@ -103,13 +103,25 @@ export async function streamLLM(systemPrompt, userPrompt, expressRes) {
 
   if (ollamaAvailable) {
     try {
-      return await streamOllama(fullPrompt, expressRes);
+      const ollamaText = await streamOllama(fullPrompt, expressRes);
+      if (ollamaText) return ollamaText;
     } catch (err) {
       console.warn(`[LLM] Ollama stream failed, falling back to Cloud LLM: ${err.message}`);
       ollamaAvailable = false;
     }
   }
-  return streamCloud(fullPrompt, expressRes);
+
+  try {
+    const cloudText = await streamCloud(fullPrompt, expressRes);
+    if (cloudText) return cloudText;
+  } catch (err) {
+    console.warn(`[LLM] Cloud stream failed directly: ${err.message}`);
+  }
+
+  // Final fallback guarantees a string for DB validation
+  const fallbackMsg = '⚠️ AI is busy. Showing basic info instead...';
+  sseWrite(expressRes, { type: 'token', content: fallbackMsg });
+  return fallbackMsg;
 }
 
 // ── Ollama ────────────────────────────────────────────────────────────────────
@@ -177,10 +189,17 @@ async function streamOllama(prompt, expressRes) {
 async function cloudGenerate(prompt, { maxTokens }) {
   if (!CLOUD_API_KEY) throw new Error('CLOUD_API_KEY not set. Please set OPENROUTER_API_KEY or TOGETHER_API_KEY in environment.');
 
-  // An array of free models to try sequentially if rate limited
+  // Fallback chain of free models
   const primaryModel = process.env.CLOUD_MODEL || CLOUD_MODEL;
   const fallbackModels = primaryModel.includes('openrouter') 
-    ? [primaryModel, 'google/gemma-3-27b-it:free', 'meta-llama/llama-3.2-3b-instruct:free', 'openrouter/free']
+    ? [
+        primaryModel, 
+        'meta-llama/llama-3.3-70b-instruct:free',
+        'google/gemma-2-9b-it:free',
+        'mistralai/mistral-7b-instruct:free',
+        'openchat/openchat-7b:free',
+        'openrouter/free'
+      ]
     : [primaryModel];
 
   let lastError = null;
@@ -246,8 +265,10 @@ async function streamCloud(prompt, expressRes) {
     sseWrite(expressRes, { type: 'model', content: `${process.env.CLOUD_MODEL || CLOUD_MODEL} (Cloud)` });
     return text;
   } catch (err) {
+    const errorMsg = '⚠️ AI is busy. Showing basic info instead...';
     sseWrite(expressRes, { type: 'error', content: 'Cloud LLM Provider Error: ' + err.message });
-    return '';
+    // Final graceful degradation fallback to prevent validation errors and still show sources
+    return errorMsg;
   }
 }
 
