@@ -10,7 +10,7 @@ const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
 
 const CLOUD_API_KEY = process.env.OPENROUTER_API_KEY || process.env.TOGETHER_API_KEY || '';
 const CLOUD_API_URL = process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.together.xyz/v1/chat/completions';
-const CLOUD_MODEL = process.env.OPENROUTER_API_KEY ? 'meta-llama/llama-3-8b-instruct:free' : 'meta-llama/Llama-3-8b-chat-hf';
+const CLOUD_MODEL = process.env.OPENROUTER_API_KEY ? 'meta-llama/llama-3.3-70b-instruct:free' : 'meta-llama/Llama-3-8b-chat-hf';
 
 let ollamaAvailable = true; // flipped on first failure
 
