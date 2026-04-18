@@ -8,9 +8,9 @@
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
 
-const HF_TOKEN = process.env.HF_TOKEN || '';
-const HF_MODEL = process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
-const HF_URL = 'https://api-inference.huggingface.co/v1/chat/completions';
+const CLOUD_API_KEY = process.env.OPENROUTER_API_KEY || process.env.TOGETHER_API_KEY || '';
+const CLOUD_API_URL = process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.together.xyz/v1/chat/completions';
+const CLOUD_MODEL = process.env.OPENROUTER_API_KEY ? 'meta-llama/llama-3-8b-instruct:free' : 'meta-llama/Llama-3-8b-chat-hf';
 
 let ollamaAvailable = true; // flipped on first failure
 
@@ -82,11 +82,11 @@ export async function callLLM(prompt, { maxTokens = 256, stream = false } = {}) 
     try {
       return await ollamaGenerate(prompt, { maxTokens, stream: false });
     } catch (err) {
-      console.warn(`[LLM] Ollama failed, trying HF: ${err.message}`);
+      console.warn(`[LLM] Ollama failed, trying Cloud LLM: ${err.message}`);
       ollamaAvailable = false;
     }
   }
-  return hfGenerate(prompt, { maxTokens });
+  return cloudGenerate(prompt, { maxTokens });
 }
 
 // ── Streaming call (for chat responses) ──────────────────────────────────────
@@ -105,11 +105,11 @@ export async function streamLLM(systemPrompt, userPrompt, expressRes) {
     try {
       return await streamOllama(fullPrompt, expressRes);
     } catch (err) {
-      console.warn(`[LLM] Ollama stream failed, falling back to HF: ${err.message}`);
+      console.warn(`[LLM] Ollama stream failed, falling back to Cloud LLM: ${err.message}`);
       ollamaAvailable = false;
     }
   }
-  return streamHF(fullPrompt, expressRes);
+  return streamCloud(fullPrompt, expressRes);
 }
 
 // ── Ollama ────────────────────────────────────────────────────────────────────
@@ -172,48 +172,53 @@ async function streamOllama(prompt, expressRes) {
   return fullText;
 }
 
-// ── Hugging Face Inference API ────────────────────────────────────────────────
+// ── Cloud LLM API (OpenRouter / Together) ───────────────────────────────────
 
-async function hfGenerate(prompt, { maxTokens }) {
-  if (!HF_TOKEN) throw new Error('HF_TOKEN not set');
-  
-  // Use exactly the required free-tier endpoint format
-  const targetModel = 'meta-llama/Llama-3.2-3B-Instruct';
-  const actualUrl = `https://api-inference.huggingface.co/models/${targetModel}`;
+async function cloudGenerate(prompt, { maxTokens }) {
+  if (!CLOUD_API_KEY) throw new Error('CLOUD_API_KEY not set. Please set OPENROUTER_API_KEY or TOGETHER_API_KEY in environment.');
 
-  const res = await fetch(actualUrl, {
+  const res = await fetch(CLOUD_API_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${HF_TOKEN}`,
+      Authorization: `Bearer ${CLOUD_API_KEY}`,
       'Content-Type': 'application/json',
-      'User-Agent': 'curalink-backend/1.0',
+      'HTTP-Referer': process.env.CLIENT_URL || 'https://curalink-blush.vercel.app',
+      'X-Title': 'Curalink AI'
     },
     body: JSON.stringify({
-      inputs: `<|user|>\n${prompt}\n<|assistant|>`,
-      parameters: { max_new_tokens: maxTokens, temperature: 0.3, return_full_text: false }
+      model: process.env.CLOUD_MODEL || CLOUD_MODEL,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+      stream: false
     }),
     signal: AbortSignal.timeout(60000),
   });
-  if (!res.ok) throw new Error(`HF HTTP ${res.status}: ${await res.text()}`);
+  
+  if (!res.ok) throw new Error(`Cloud API HTTP ${res.status}: ${await res.text()}`);
   const data = await res.json();
   
-  return data[0]?.generated_text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
-async function streamHF(prompt, expressRes) {
-  if (!HF_TOKEN) {
-    sseWrite(expressRes, { type: 'error', content: 'No LLM backend available. Set OLLAMA_BASE_URL or HF_TOKEN.' });
+async function streamCloud(prompt, expressRes) {
+  if (!CLOUD_API_KEY) {
+    sseWrite(expressRes, { type: 'error', content: 'No LLM backend available. Please set OPENROUTER_API_KEY in your Render dashboard.' });
     return '';
   }
 
-  // HF Inference API doesn't support true streaming for all models.
-  // We do a non-streaming call and emit all at once.
-  sseWrite(expressRes, { type: 'token', content: '⏳ Generating response via Hugging Face...\n\n' });
+  // Not true streaming since we use the basic endpoint, but streams the whole block for UX UI compatibility
+  sseWrite(expressRes, { type: 'token', content: '⏳ Generating response via Cloud LLM...\n\n' });
 
-  const text = await hfGenerate(prompt, { maxTokens: 2048 });
-  sseWrite(expressRes, { type: 'token', content: text });
-  sseWrite(expressRes, { type: 'model', content: `${HF_MODEL} (HuggingFace)` });
-  return text;
+  try {
+    const text = await cloudGenerate(prompt, { maxTokens: 2048 });
+    sseWrite(expressRes, { type: 'token', content: text });
+    sseWrite(expressRes, { type: 'model', content: `${process.env.CLOUD_MODEL || CLOUD_MODEL} (Cloud)` });
+    return text;
+  } catch (err) {
+    sseWrite(expressRes, { type: 'error', content: 'Cloud LLM Provider Error: ' + err.message });
+    return '';
+  }
 }
 
 // ── SSE helper ────────────────────────────────────────────────────────────────
