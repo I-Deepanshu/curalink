@@ -37,6 +37,8 @@ export async function expandQuery(query, disease = '', intent = '') {
     const expanded = await callLLM(prompt, { maxTokens: 60, stream: false });
     const cleaned = expanded.trim().replace(/^["']|["']$/g, '').trim();
     if (cleaned.length < 3) throw new Error('Empty expansion');
+    if (cleaned.includes('temporarily unavailable')) throw new Error('LLM model rotation completely exhausted');
+    
     console.log(`[QueryExpander] "${query}" → "${cleaned}"`);
     return cleaned;
   } catch (err) {
