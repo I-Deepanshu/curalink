@@ -265,9 +265,13 @@ async function streamCloud(prompt, expressRes) {
     sseWrite(expressRes, { type: 'model', content: `${process.env.CLOUD_MODEL || CLOUD_MODEL} (Cloud)` });
     return text;
   } catch (err) {
-    const errorMsg = '⚠️ AI is busy. Showing basic info instead...';
-    sseWrite(expressRes, { type: 'error', content: 'Cloud LLM Provider Error: ' + err.message });
-    // Final graceful degradation fallback to prevent validation errors and still show sources
+    console.warn(`[LLM] Cloud cascade failed entirely: ${err.message}`);
+    const errorMsg = '⚠️ AI is busy right now. However, you can still view the retrieved sources and research publications on the right panel.';
+    
+    // Write the clean degradation message directly to the UI
+    sseWrite(expressRes, { type: 'token', content: errorMsg });
+    
+    // Final graceful degradation fallback to prevent validation errors 
     return errorMsg;
   }
 }
