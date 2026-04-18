@@ -19,15 +19,15 @@ const limit = pLimit(API_KEY ? 10 : 3);
  * @param {number} maxResults - max IDs to fetch (caps at 200)
  * @returns {Promise<Array>} normalised document objects
  */
-export async function fetchPubMed(query, maxResults = 100) {
+export async function fetchPubMed(query, maxResults = 20) {
   // Step 1: Search → ID list
-  const ids = await searchIds(query, Math.min(maxResults, 200));
+  const ids = await searchIds(query, Math.min(maxResults, 50));
   if (!ids.length) return [];
 
   console.log(`[PubMed] Found ${ids.length} IDs for: "${query}"`);
 
-  // Step 2: Fetch details in batches of 20
-  const batchSize = 20;
+  // Step 2: Fetch details in batches of 10 to speed up XML fetching
+  const batchSize = 10;
   const batches = [];
   for (let i = 0; i < ids.length; i += batchSize) {
     batches.push(ids.slice(i, i + batchSize));
