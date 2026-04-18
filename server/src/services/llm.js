@@ -177,12 +177,9 @@ async function streamOllama(prompt, expressRes) {
 async function hfGenerate(prompt, { maxTokens }) {
   if (!HF_TOKEN) throw new Error('HF_TOKEN not set');
   
-  // Force upgrade deprecated Mistral/Zephyr endpoints to active Llama 3.2 model
-  const targetModel = (HF_MODEL.includes('Mistral') || HF_MODEL.includes('zephyr'))
-    ? 'meta-llama/Llama-3.2-3B-Instruct' 
-    : HF_MODEL;
-
-  const actualUrl = `https://api-inference.huggingface.co/models/${targetModel}/v1/chat/completions`;
+  // Use exactly the required free-tier endpoint format
+  const targetModel = 'meta-llama/Llama-3.2-3B-Instruct';
+  const actualUrl = `https://api-inference.huggingface.co/models/${targetModel}`;
 
   const res = await fetch(actualUrl, {
     method: 'POST',
@@ -192,17 +189,15 @@ async function hfGenerate(prompt, { maxTokens }) {
       'User-Agent': 'curalink-backend/1.0',
     },
     body: JSON.stringify({
-      model: targetModel,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: maxTokens,
-      temperature: 0.3,
-      stream: false
+      inputs: `<|user|>\n${prompt}\n<|assistant|>`,
+      parameters: { max_new_tokens: maxTokens, temperature: 0.3, return_full_text: false }
     }),
     signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) throw new Error(`HF HTTP ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return data.choices?.[0]?.message?.content || '';
+  
+  return data[0]?.generated_text || '';
 }
 
 async function streamHF(prompt, expressRes) {
