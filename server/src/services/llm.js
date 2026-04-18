@@ -177,28 +177,58 @@ async function streamOllama(prompt, expressRes) {
 async function cloudGenerate(prompt, { maxTokens }) {
   if (!CLOUD_API_KEY) throw new Error('CLOUD_API_KEY not set. Please set OPENROUTER_API_KEY or TOGETHER_API_KEY in environment.');
 
-  const res = await fetch(CLOUD_API_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${CLOUD_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.CLIENT_URL || 'https://curalink-blush.vercel.app',
-      'X-Title': 'Curalink AI'
-    },
-    body: JSON.stringify({
-      model: process.env.CLOUD_MODEL || CLOUD_MODEL,
-      messages: [{ role: 'user', content: prompt }],
-      max_tokens: maxTokens,
-      temperature: 0.3,
-      stream: false
-    }),
-    signal: AbortSignal.timeout(60000),
-  });
-  
-  if (!res.ok) throw new Error(`Cloud API HTTP ${res.status}: ${await res.text()}`);
-  const data = await res.json();
-  
-  return data.choices?.[0]?.message?.content || '';
+  // An array of free models to try sequentially if rate limited
+  const primaryModel = process.env.CLOUD_MODEL || CLOUD_MODEL;
+  const fallbackModels = primaryModel.includes('openrouter') 
+    ? [primaryModel, 'google/gemma-3-27b-it:free', 'meta-llama/llama-3.2-3b-instruct:free', 'openrouter/free']
+    : [primaryModel];
+
+  let lastError = null;
+
+  for (const modelId of fallbackModels) {
+    try {
+      const res = await fetch(CLOUD_API_URL, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${CLOUD_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': process.env.CLIENT_URL || 'https://curalink-blush.vercel.app',
+          'X-Title': 'Curalink AI'
+        },
+        body: JSON.stringify({
+          model: modelId,
+          messages: [{ role: 'user', content: prompt }],
+          max_tokens: maxTokens,
+          temperature: 0.3,
+          stream: false
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+      
+      const payloadText = await res.text();
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          lastError = `Rate limited on ${modelId}: ${payloadText}`;
+          console.warn(lastError);
+          continue; // Try next model
+        }
+        throw new Error(`Cloud API HTTP ${res.status}: ${payloadText}`);
+      }
+      
+      const data = JSON.parse(payloadText);
+      return data.choices?.[0]?.message?.content || '';
+      
+    } catch (err) {
+      if (err.name === 'TimeoutError') {
+        lastError = `Timeout on ${modelId}`;
+        continue;
+      }
+      throw err; // Stop on auth errors or fatal crashes
+    }
+  }
+
+  throw new Error(`All available free cloud models failed. Last Error: ${lastError}`);
 }
 
 async function streamCloud(prompt, expressRes) {
