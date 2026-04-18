@@ -17,7 +17,19 @@ const PORT = process.env.PORT || 3001;
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.CLIENT_URL || '*',
+  origin: (origin, cb) => {
+    // Allow requests with no origin (curl, Postman, server-side)
+    if (!origin) return cb(null, true);
+    const allowed = [
+      process.env.CLIENT_URL,
+      /\.vercel\.app$/,
+      /^http:\/\/localhost/,
+    ].filter(Boolean);
+    const ok = allowed.some((p) =>
+      typeof p === 'string' ? p === origin : p.test(origin)
+    );
+    cb(ok ? null : new Error(`CORS blocked: ${origin}`), ok);
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: '2mb' }));
