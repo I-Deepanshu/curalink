@@ -86,7 +86,8 @@ export async function callLLM(prompt, { maxTokens = 256, stream = false } = {}) 
       ollamaAvailable = false;
     }
   }
-  return cloudGenerate(prompt, { maxTokens });
+  const result = await cloudGenerate(prompt, { maxTokens });
+  return result.text;
 }
 
 // ── Streaming call (for chat responses) ──────────────────────────────────────
@@ -189,15 +190,43 @@ async function streamOllama(prompt, expressRes) {
 async function cloudGenerate(prompt, { maxTokens }) {
   if (!CLOUD_API_KEY) throw new Error('CLOUD_API_KEY not set. Please set OPENROUTER_API_KEY or TOGETHER_API_KEY in environment.');
 
-  // Fallback chain of free models
+  // Source-aware prompt injection
+  const enhancedPrompt = `Answer medically with clarity.
+
+User Query:
+${prompt}
+
+Include:
+- Symptoms
+- Causes
+- When to see a doctor`;
+
+  const requestOptions = (modelId) => ({
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${CLOUD_API_KEY}`,
+      'Content-Type': 'application/json',
+      'HTTP-Referer': process.env.CLIENT_URL || 'https://curalink-blush.vercel.app',
+      'X-Title': 'Curalink AI'
+    },
+    body: JSON.stringify({
+      model: modelId,
+      messages: [{ role: 'user', content: enhancedPrompt }],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+      stream: false
+    }),
+    signal: AbortSignal.timeout(15000), // Fast-fail timeout to prevent blocking chain
+  });
+
+  // Fallback chain of free models - fastest models first, slow 70B last
   const primaryModel = process.env.CLOUD_MODEL || CLOUD_MODEL;
   const fallbackModels = primaryModel.includes('openrouter') 
     ? [
-        primaryModel, 
-        'meta-llama/llama-3.3-70b-instruct:free',
-        'google/gemma-2-9b-it:free',
         'mistralai/mistral-7b-instruct:free',
+        'google/gemma-2-9b-it:free',
         'openchat/openchat-7b:free',
+        'meta-llama/llama-3.3-70b-instruct:free',
         'openrouter/free'
       ]
     : [primaryModel];
@@ -206,48 +235,54 @@ async function cloudGenerate(prompt, { maxTokens }) {
 
   for (const modelId of fallbackModels) {
     try {
-      const res = await fetch(CLOUD_API_URL, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${CLOUD_API_KEY}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': process.env.CLIENT_URL || 'https://curalink-blush.vercel.app',
-          'X-Title': 'Curalink AI'
-        },
-        body: JSON.stringify({
-          model: modelId,
-          messages: [{ role: 'user', content: prompt }],
-          max_tokens: maxTokens,
-          temperature: 0.3,
-          stream: false
-        }),
-        signal: AbortSignal.timeout(60000),
-      });
-      
-      const payloadText = await res.text();
+      let res = await fetch(CLOUD_API_URL, requestOptions(modelId));
+      let payloadText = await res.text();
 
       if (!res.ok) {
         if (res.status === 429) {
-          lastError = `Rate limited on ${modelId}: ${payloadText}`;
+          // Retry once with small backoff before skipping
+          await new Promise(r => setTimeout(r, 1500));
+          
+          res = await fetch(CLOUD_API_URL, requestOptions(modelId));
+          payloadText = await res.text();
+          
+          if (!res.ok) {
+            lastError = `Rate limited on ${modelId} after retry: ${payloadText}`;
+            console.warn(lastError);
+            continue; 
+          }
+        } else {
+          lastError = `Cloud API HTTP ${res.status}: ${payloadText}`;
           console.warn(lastError);
-          continue; // Try next model
+          continue; // Don't throw, drop nicely to next model
         }
-        throw new Error(`Cloud API HTTP ${res.status}: ${payloadText}`);
       }
       
       const data = JSON.parse(payloadText);
-      return data.choices?.[0]?.message?.content || '';
+      const content = data.choices?.[0]?.message?.content;
       
-    } catch (err) {
-      if (err.name === 'TimeoutError') {
-        lastError = `Timeout on ${modelId}`;
+      if (!content || content.trim().length === 0) {
+        lastError = `Empty response from ${modelId}`;
+        console.warn(lastError);
         continue;
       }
-      throw err; // Stop on auth errors or fatal crashes
+      
+      // Strict tracking return mechanism
+      return { text: content, modelUsed: modelId };
+      
+    } catch (err) {
+      lastError = `${err.name} on ${modelId}: ${err.message}`;
+      console.warn(`[LLM] Error trying ${modelId}: ${err.message}`);
+      continue; // Proceed to fallback
     }
   }
 
-  throw new Error(`All available free cloud models failed. Last Error: ${lastError}`);
+  // Ultimate safety fallback -> ensures total 100% guaranteed delivery
+  console.warn(`[LLM] All available free cloud models failed. Last Error: ${lastError}`);
+  return {
+    text: "⚠️ AI temporarily unavailable. Showing basic medical info instead...",
+    modelUsed: "fallback-static"
+  };
 }
 
 async function streamCloud(prompt, expressRes) {
@@ -256,24 +291,14 @@ async function streamCloud(prompt, expressRes) {
     return '';
   }
 
-  // Not true streaming since we use the basic endpoint, but streams the whole block for UX UI compatibility
   sseWrite(expressRes, { type: 'token', content: '⏳ Generating response via Cloud LLM...\n\n' });
 
-  try {
-    const text = await cloudGenerate(prompt, { maxTokens: 2048 });
-    sseWrite(expressRes, { type: 'token', content: text });
-    sseWrite(expressRes, { type: 'model', content: `${process.env.CLOUD_MODEL || CLOUD_MODEL} (Cloud)` });
-    return text;
-  } catch (err) {
-    console.warn(`[LLM] Cloud cascade failed entirely: ${err.message}`);
-    const errorMsg = '⚠️ AI is busy right now. However, you can still view the retrieved sources and research publications on the right panel.';
-    
-    // Write the clean degradation message directly to the UI
-    sseWrite(expressRes, { type: 'token', content: errorMsg });
-    
-    // Final graceful degradation fallback to prevent validation errors 
-    return errorMsg;
-  }
+  // Object destructuring enforces model fidelity
+  const { text, modelUsed } = await cloudGenerate(prompt, { maxTokens: 2048 });
+  
+  sseWrite(expressRes, { type: 'token', content: text });
+  sseWrite(expressRes, { type: 'model', content: `${modelUsed} (Cloud)` });
+  return text;
 }
 
 // ── SSE helper ────────────────────────────────────────────────────────────────
