@@ -177,12 +177,14 @@ async function streamOllama(prompt, expressRes) {
 async function hfGenerate(prompt, { maxTokens }) {
   if (!HF_TOKEN) throw new Error('HF_TOKEN not set');
   
-  // Force upgrade deprecated Mistral endpoint
-  const targetModel = HF_MODEL.includes('Mistral-7B-Instruct') 
-    ? 'HuggingFaceH4/zephyr-7b-beta' 
+  // Force upgrade deprecated Mistral/Zephyr endpoints to active Llama 3.2 model
+  const targetModel = (HF_MODEL.includes('Mistral') || HF_MODEL.includes('zephyr'))
+    ? 'meta-llama/Llama-3.2-3B-Instruct' 
     : HF_MODEL;
 
-  const res = await fetch(HF_URL, {
+  const actualUrl = `https://api-inference.huggingface.co/models/${targetModel}/v1/chat/completions`;
+
+  const res = await fetch(actualUrl, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${HF_TOKEN}`,
