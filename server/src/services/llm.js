@@ -9,8 +9,8 @@ const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
 
 const HF_TOKEN = process.env.HF_TOKEN || '';
-const HF_MODEL = process.env.HF_MODEL || 'mistralai/Mistral-7B-Instruct-v0.2';
-const HF_URL = `https://api-inference.huggingface.co/models/${HF_MODEL}`;
+const HF_MODEL = process.env.HF_MODEL || 'HuggingFaceH4/zephyr-7b-beta';
+const HF_URL = 'https://api-inference.huggingface.co/v1/chat/completions';
 
 let ollamaAvailable = true; // flipped on first failure
 
@@ -176,6 +176,12 @@ async function streamOllama(prompt, expressRes) {
 
 async function hfGenerate(prompt, { maxTokens }) {
   if (!HF_TOKEN) throw new Error('HF_TOKEN not set');
+  
+  // Force upgrade deprecated Mistral endpoint
+  const targetModel = HF_MODEL.includes('Mistral-7B-Instruct') 
+    ? 'HuggingFaceH4/zephyr-7b-beta' 
+    : HF_MODEL;
+
   const res = await fetch(HF_URL, {
     method: 'POST',
     headers: {
@@ -183,14 +189,17 @@ async function hfGenerate(prompt, { maxTokens }) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      inputs: `[INST] ${prompt} [/INST]`,
-      parameters: { max_new_tokens: maxTokens, temperature: 0.3, return_full_text: false },
+      model: targetModel,
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: maxTokens,
+      temperature: 0.3,
+      stream: false
     }),
     signal: AbortSignal.timeout(60000),
   });
   if (!res.ok) throw new Error(`HF HTTP ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return data[0]?.generated_text || '';
+  return data.choices?.[0]?.message?.content || '';
 }
 
 async function streamHF(prompt, expressRes) {
