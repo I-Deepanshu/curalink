@@ -196,7 +196,7 @@ async function geminiGenerate(prompt, { maxTokens = 2048 } = {}) {
   if (!geminiClient) throw new Error('Gemini client not initialized.');
 
   try {
-    const modelId = 'gemini-1.5-flash'; 
+    const modelId = 'gemini-3-flash-preview'; 
     
     const result = await geminiClient.models.generateContent({
       model: modelId,
