@@ -228,113 +228,16 @@ async function geminiGenerate(prompt, { maxTokens = 2048 } = {}) {
 // ── Cloud LLM API (OpenRouter / Together) ───────────────────────────────────
 
 export async function cloudGenerate(prompt, { maxTokens = 2048 } = {}) {
-  // 🔥 TRY GEMINI FIRST
+  // Directly use Gemini as requested
   if (geminiClient) {
     try {
-      console.log("Attempting Gemini...");
       return await geminiGenerate(prompt, { maxTokens });
     } catch (e) {
-      console.warn("Gemini failed, switching to OpenRouter cascade...", e.message);
+      console.error("Gemini failed:", e.message);
     }
   }
 
-  if (!CLOUD_API_KEY) {
-    // If Gemini fails and no OpenRouter key, we must return a safe fallback string
-    return {
-      text: "⚠️ AI temporarily unavailable. Showing basic medical info instead...",
-      modelUsed: "fallback-static"
-    };
-  }
-
-  // Source-aware prompt injection
-  const enhancedPrompt = `Answer medically with clarity.
-
-User Query:
-${prompt}
-
-Include:
-- Symptoms
-- Causes
-- When to see a doctor`;
-
-  const requestOptions = (modelId) => ({
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${CLOUD_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': process.env.CLIENT_URL || 'https://curalink-blush.vercel.app',
-      'X-Title': 'Curalink AI'
-    },
-    body: JSON.stringify({
-      model: modelId,
-      messages: [{ role: 'user', content: enhancedPrompt }],
-      max_tokens: maxTokens,
-      temperature: 0.3,
-      stream: false
-    }),
-    signal: AbortSignal.timeout(15000), // Fast-fail timeout to prevent blocking chain
-  });
-
-  // Fallback chain of free models - fastest models first, slow 70B last
-  const primaryModel = process.env.CLOUD_MODEL || CLOUD_MODEL;
-  const fallbackModels = primaryModel.includes('openrouter') 
-    ? [
-        'mistralai/mistral-7b-instruct:free',
-        'google/gemma-2-9b-it:free',
-        'openchat/openchat-7b:free',
-        'meta-llama/llama-3.3-70b-instruct:free',
-        'openrouter/free'
-      ]
-    : [primaryModel];
-
-  let lastError = null;
-
-  for (const modelId of fallbackModels) {
-    try {
-      let res = await fetch(CLOUD_API_URL, requestOptions(modelId));
-      let payloadText = await res.text();
-
-      if (!res.ok) {
-        if (res.status === 429) {
-          // Retry once with small backoff before skipping
-          await new Promise(r => setTimeout(r, 1500));
-          
-          res = await fetch(CLOUD_API_URL, requestOptions(modelId));
-          payloadText = await res.text();
-          
-          if (!res.ok) {
-            lastError = `Rate limited on ${modelId} after retry: ${payloadText}`;
-            console.warn(lastError);
-            continue; 
-          }
-        } else {
-          lastError = `Cloud API HTTP ${res.status}: ${payloadText}`;
-          console.warn(lastError);
-          continue; // Don't throw, drop nicely to next model
-        }
-      }
-      
-      const data = JSON.parse(payloadText);
-      const content = data.choices?.[0]?.message?.content;
-      
-      if (!content || content.trim().length === 0) {
-        lastError = `Empty response from ${modelId}`;
-        console.warn(lastError);
-        continue;
-      }
-      
-      // Strict tracking return mechanism
-      return { text: content, modelUsed: modelId };
-      
-    } catch (err) {
-      lastError = `${err.name} on ${modelId}: ${err.message}`;
-      console.warn(`[LLM] Error trying ${modelId}: ${err.message}`);
-      continue; // Proceed to fallback
-    }
-  }
-
-  // Ultimate safety fallback -> ensures total 100% guaranteed delivery
-  console.warn(`[LLM] All available free cloud models failed. Last Error: ${lastError}`);
+  // Final static safety fallback if Gemini fails
   return {
     text: "⚠️ AI temporarily unavailable. Showing basic medical info instead...",
     modelUsed: "fallback-static"
@@ -342,14 +245,9 @@ Include:
 }
 
 async function streamCloud(prompt, expressRes) {
-  if (!CLOUD_API_KEY) {
-    sseWrite(expressRes, { type: 'error', content: 'No LLM backend available. Please set OPENROUTER_API_KEY in your Render dashboard.' });
-    return '';
-  }
+  sseWrite(expressRes, { type: 'status', content: '⏳ Generating response via Gemini Cloud...' });
 
-  sseWrite(expressRes, { type: 'status', content: '⏳ Generating response via Cloud LLM...' });
-
-  // Object destructuring enforces model fidelity
+  // Directly call the Gemini wrapper
   const { text, modelUsed } = await cloudGenerate(prompt, { maxTokens: 2048 });
   
   sseWrite(expressRes, { type: 'token', content: text });
