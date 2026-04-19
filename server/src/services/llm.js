@@ -192,12 +192,11 @@ async function streamOllama(prompt, expressRes) {
 
 // ── Gemini ───────────────────────────────────────────────────────────────────
 
-async function geminiGenerate(prompt, { maxTokens }) {
+async function geminiGenerate(prompt, { maxTokens = 2048 } = {}) {
   if (!geminiClient) throw new Error('Gemini client not initialized.');
 
   try {
-    // Primary choice is the user requested preview, fallback to stable 2.0 Flash
-    const modelId = 'gemini-2.0-flash'; 
+    const modelId = 'gemini-1.5-flash'; 
     
     const result = await geminiClient.models.generateContent({
       model: modelId,
@@ -208,28 +207,44 @@ async function geminiGenerate(prompt, { maxTokens }) {
       }
     });
 
-    const text = result.text();
-    if (!text) throw new Error('Empty Gemini response');
+    // 🔍 Logging (make debugging EASY) - can be removed later
+    console.log("GEMINI RAW RESPONSE:", JSON.stringify(result, null, 2));
+
+    const text = result?.candidates?.[0]?.content?.parts
+      ?.map(p => p.text || "")
+      .join("") || "";
+
+    if (!text || text.trim().length === 0) {
+      throw new Error('Empty Gemini response');
+    }
 
     return { text, modelUsed: modelId };
   } catch (err) {
-    throw new Error(`Gemini SDK error: ${err.message}`);
+    console.error("GEMINI ERROR:", err.message);
+    throw err;
   }
 }
 
 // ── Cloud LLM API (OpenRouter / Together) ───────────────────────────────────
 
-async function cloudGenerate(prompt, { maxTokens }) {
-  // Try Gemini first if key present
-  if (GEMINI_API_KEY) {
+export async function cloudGenerate(prompt, { maxTokens = 2048 } = {}) {
+  // 🔥 TRY GEMINI FIRST
+  if (geminiClient) {
     try {
+      console.log("Attempting Gemini...");
       return await geminiGenerate(prompt, { maxTokens });
-    } catch (err) {
-      console.warn(`[LLM] Gemini failed, falling back to other cloud models: ${err.message}`);
+    } catch (e) {
+      console.warn("Gemini failed, switching to OpenRouter cascade...", e.message);
     }
   }
 
-  if (!CLOUD_API_KEY) throw new Error('No Cloud API key set (Gemini, OpenRouter, or Together).');
+  if (!CLOUD_API_KEY) {
+    // If Gemini fails and no OpenRouter key, we must return a safe fallback string
+    return {
+      text: "⚠️ AI temporarily unavailable. Showing basic medical info instead...",
+      modelUsed: "fallback-static"
+    };
+  }
 
   // Source-aware prompt injection
   const enhancedPrompt = `Answer medically with clarity.
