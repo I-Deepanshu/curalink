@@ -1,16 +1,21 @@
 /**
- * LLM service — Ollama primary, Hugging Face Inference API fallback.
+ * LLM service — Ollama primary, Gemini/OpenRouter cloud fallback.
  *
  * callLLM(prompt, opts)       → string (non-streamed, e.g. query expansion)
  * streamLLM(prompt, res, opts) → streams SSE tokens to Express `res`
  */
 
+import { GoogleGenAI } from '@google/genai';
+
 const OLLAMA_BASE = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
 
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const CLOUD_API_KEY = process.env.OPENROUTER_API_KEY || process.env.TOGETHER_API_KEY || '';
 const CLOUD_API_URL = process.env.OPENROUTER_API_KEY ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.together.xyz/v1/chat/completions';
 const CLOUD_MODEL = process.env.OPENROUTER_API_KEY ? 'meta-llama/llama-3.3-70b-instruct:free' : 'meta-llama/Llama-3-8b-chat-hf';
+
+const geminiClient = GEMINI_API_KEY ? new GoogleGenAI({ apiKey: GEMINI_API_KEY }) : null;
 
 let ollamaAvailable = true; // flipped on first failure
 
@@ -185,10 +190,46 @@ async function streamOllama(prompt, expressRes) {
   return fullText;
 }
 
+// ── Gemini ───────────────────────────────────────────────────────────────────
+
+async function geminiGenerate(prompt, { maxTokens }) {
+  if (!geminiClient) throw new Error('Gemini client not initialized.');
+
+  try {
+    // Primary choice is the user requested preview, fallback to stable 2.0 Flash
+    const modelId = 'gemini-2.0-flash'; 
+    
+    const result = await geminiClient.models.generateContent({
+      model: modelId,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      config: {
+        maxOutputTokens: maxTokens,
+        temperature: 0.3
+      }
+    });
+
+    const text = result.text();
+    if (!text) throw new Error('Empty Gemini response');
+
+    return { text, modelUsed: modelId };
+  } catch (err) {
+    throw new Error(`Gemini SDK error: ${err.message}`);
+  }
+}
+
 // ── Cloud LLM API (OpenRouter / Together) ───────────────────────────────────
 
 async function cloudGenerate(prompt, { maxTokens }) {
-  if (!CLOUD_API_KEY) throw new Error('CLOUD_API_KEY not set. Please set OPENROUTER_API_KEY or TOGETHER_API_KEY in environment.');
+  // Try Gemini first if key present
+  if (GEMINI_API_KEY) {
+    try {
+      return await geminiGenerate(prompt, { maxTokens });
+    } catch (err) {
+      console.warn(`[LLM] Gemini failed, falling back to other cloud models: ${err.message}`);
+    }
+  }
+
+  if (!CLOUD_API_KEY) throw new Error('No Cloud API key set (Gemini, OpenRouter, or Together).');
 
   // Source-aware prompt injection
   const enhancedPrompt = `Answer medically with clarity.
