@@ -12,14 +12,19 @@ export function useChat() {
   const sendMessage = useCallback(async ({ query, disease, intent, location, sessionId, onSessionId }) => {
     if (isStreaming) return;
 
-    // Add user message immediately
-    setMessages((prev) => [...prev, { role: 'user', content: query, id: Date.now() }]);
+    // Generate unique IDs to prevent bubble collision
+    const userId = Date.now() + Math.random().toString(36).substring(7);
+    const assistantId = Date.now() + Math.random().toString(36).substring(7);
+
+    // Add both messages atomically
+    setMessages((prev) => [
+      ...prev, 
+      { role: 'user', content: query, id: userId },
+      { role: 'assistant', content: '', id: assistantId, streaming: true }
+    ]);
+
     setIsStreaming(true);
     setStatusText('');
-
-    // Placeholder for streaming assistant response
-    const assistantId = Date.now() + 1;
-    setMessages((prev) => [...prev, { role: 'assistant', content: '', id: assistantId, streaming: true }]);
 
     const controller = new AbortController();
     abortRef.current = controller;

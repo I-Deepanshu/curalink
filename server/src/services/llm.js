@@ -347,7 +347,7 @@ async function streamCloud(prompt, expressRes) {
     return '';
   }
 
-  sseWrite(expressRes, { type: 'token', content: '⏳ Generating response via Cloud LLM...\n\n' });
+  sseWrite(expressRes, { type: 'status', content: '⏳ Generating response via Cloud LLM...' });
 
   // Object destructuring enforces model fidelity
   const { text, modelUsed } = await cloudGenerate(prompt, { maxTokens: 2048 });
